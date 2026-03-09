@@ -1,2 +1,36 @@
 # TelemetryFlightViewer
 View CSV Telemetry Flight Data on LeafLet Maps
+
+
+A  offline HTML + JavaScript viewer for INAV / Betaflight / Ardupilot /EdgeTX GPS logs.
+Tested on csv created by lua telemetry from inav.
+
+Features:
+- animated GPS flight replay
+- Altitude-colored flight path
+- Stats panel (max/avg speed, distance, altitude)
+- Offline Leaflet + PapaParse. Still needs internet access from non-cached maps
+
+## How to use
+
+1. Download the repo
+2. Open `TelemetryFlightViewer.html` directly in your browser
+3. Click “Load CSV”
+4. Select your flight log ( CSV format) See examplelog.csv
+
+## Supports
+
+- GPS field: `"GPS"` formatted as `"lat lon"` - no need to split the cell
+- Altitude: `Alt(m)`
+- Speed: `GSpd(kmh)`
+- Heading: `Hdg(°)`
+- Flight mode: `FM`
+
+## No dependencies
+Everything is bundled locally:
+- Leaflet.js/CSS
+- PapaParse
+- replay.js
+
+## License
+MIT
