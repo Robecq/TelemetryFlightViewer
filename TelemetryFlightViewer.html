@@ -1,0 +1,130 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8" />
+  <title>iNav Flight Viewer (Offline Replay)</title>
+
+  <!-- Local Leaflet CSS -->
+  <link rel="stylesheet" href="leaflet.css" />
+
+  <style>
+    :root {
+      --legend-width: 180px;
+      --legend-height: 12px;
+    }
+    body { font-family: system-ui, Arial, sans-serif; margin: 0; }
+    #controls {
+      display: grid;
+      grid-template-columns: auto auto auto auto auto 1fr;
+      gap: 10px; align-items: center;
+      padding: 10px 12px; background: #f6f6f6; border-bottom: 1px solid #e2e2e2;
+    }
+    #map { height: calc(100vh - 82px); width: 100%; }
+    #status { color: #666; white-space: nowrap; }
+    #scrub { width: 100%; }
+
+    /* Legend */
+    .legend {
+      position: absolute; bottom: 12px; left: 12px;
+      background: #fff; border-radius: 6px; box-shadow: 0 2px 10px rgba(0,0,0,.15);
+      padding: 10px 12px; font-size: 13px; line-height: 1.2; z-index: 10000;     /* higher than all Leaflet layers */
+
+    }
+    .legend-title { font-weight: 600; margin-bottom: 6px; }
+    .legend-bar {
+      width: var(--legend-width); height: var(--legend-height); border-radius: 6px; margin: 6px 0;
+      background: linear-gradient(to right,
+        hsl(120, 90%, 45%) 0%,
+        hsl(60, 95%, 50%) 50%,
+        hsl(0, 95%, 50%) 100%);
+      border: 1px solid #ddd;
+    }
+    .legend-scale {
+      display: flex; justify-content: space-between; color: #333;
+      width: var(--legend-width);
+    }
+    .muted { color: #666; }
+    .btn { padding: 6px 10px; border: 1px solid #ccc; border-radius: 6px; background:#fff; cursor:pointer; }
+    .btn:active { transform: translateY(1px); }
+    select, input[type="range"], input[type="checkbox"] { cursor: pointer; }
+    label { user-select: none; }
+
+  
+  .stats-panel.leaflet-control {
+    background:#fff; border:1px solid #ccc; border-radius:8px;
+    box-shadow:0 2px 10px rgba(0,0,0,.12);
+    padding:10px 12px; font:13px/1.35 system-ui, Arial, sans-serif;
+    min-width:220px; z-index:10001;
+  }
+  .stats-title { font-weight:700; margin-bottom:6px; }
+  .stats-panel table { width:100%; border-collapse:collapse; }
+  .stats-panel th { text-align:left; font-weight:600; padding-right:8px; white-space:nowrap; }
+  .stats-panel td { text-align:right; }
+
+  </style>
+</head>
+<body>
+
+  <div id="controls">
+    <label><strong>Load CSV:</strong> <input type="file" id="fileInput" accept=".csv" /></label>
+
+    <button id="playPause" class="btn" disabled>▶ Play</button>
+
+    <label>Speed
+      <select id="speed" disabled>
+        <option value="0.25">0.25×</option>
+        <option value="0.5">0.5×</option>
+        <option value="1" selected>1×</option>
+        <option value="2">2×</option>
+        <option value="4">4×</option>
+        <option value="8">8×</option>
+      </select>
+    </label>
+
+    <label>Tail (s)
+      <input id="tail" type="range" min="0" max="60" value="10" step="1" disabled />
+    </label>
+
+    <label><input id="follow" type="checkbox" checked disabled/> Follow</label>
+
+    <input id="scrub" type="range" min="0" max="1000" value="0" disabled/>
+    <div id="status" class="muted">Load a CSV to begin</div>
+  </div>
+
+  <div id="map"></div>
+
+  <!-- Legend -->
+  <div id="legend" class="legend" style="display:none;">
+    <div class="legend-title">Altitude (m)</div>
+    <div class="legend-bar"></div>
+    <div class="legend-scale">
+      <span id="altMin">0</span>
+      <span id="altMid" class="muted">mid</span>
+      <span id="altMax">0</span>
+    </div>
+  </div>
+
+  <!-- Local Leaflet JS -->
+  <script src="leaflet.js"></script>
+
+  <!-- Local PapaParse -->
+  <script src="papaparse.min.js"></script>
+
+  <!-- Replay Code -->
+  <script>
+    /*  FULL replay engine here — this was too long to display twice.
+        The JS block is identical to the one I generated previously.
+        For clarity and length, I will provide the JS as a separate file below.
+        Just save it as replay.js and include it.
+    */
+
+    // Instead of pasting 1000+ lines here again,
+    // please scroll down to section 4 for "replay.js".
+
+  </script>
+
+  <!-- Load replay JS separately -->
+  <script src="replay.js"></script>
+
+</body>
+</html>
