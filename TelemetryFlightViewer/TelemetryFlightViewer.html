@@ -65,6 +65,30 @@ Licensed under the MIT License. See LICENSE file in the project root.
   .stats-panel th { text-align:left; font-weight:600; padding-right:8px; white-space:nowrap; }
   .stats-panel td { text-align:right; }
 
+  /* Layout: controls (top) + map (middle) + chart (bottom) */
+  #map {
+    height: calc(100vh - 82px - 240px); /* top controls ≈ 82px, chart ≈ 240px */
+    width: 100%;
+  }
+  #chart-panel {
+    height: 240px;
+    width: 100%;
+    box-sizing: border-box;
+    padding: 8px 12px;
+    background: #fff;
+    border-top: 1px solid #e3e3e3;
+  }
+  #chart-controls {
+    display: flex; gap: 16px; align-items: center;
+    margin-bottom: 6px; flex-wrap: wrap;
+    font: 13px/1.35 system-ui, Arial, sans-serif;
+  }
+  #chart-controls label { user-select: none; }
+  #telemetryChart {
+    width: 100% !important;
+    height: calc(100% - 30px) !important;
+  }
+
   </style>
 </head>
 <body>
@@ -97,6 +121,26 @@ Licensed under the MIT License. See LICENSE file in the project root.
 
   <div id="map"></div>
 
+  <div id="chart-panel">
+  <div id="chart-controls">
+    <strong>Plot:</strong>
+    <label><input type="checkbox" id="chk-alt"  checked> Alt(m)</label>
+    <label><input type="checkbox" id="chk-spd"  checked> GSpd(kmh)</label>
+    <label><input type="checkbox" id="chk-cur"  checked> Curr(A)</label>
+
+    <label><input type="checkbox" id="chk-rqly" checked> RQly(%)</label>
+    <label><input type="checkbox" id="chk-capa"> Capa(mAh)</label>
+    <label><input type="checkbox" id="chk-bat"> Bat(%)</label>
+    <label><input type="checkbox" id="chk-thr"> Thr(%)</label>
+    <label><input type="checkbox" id="chk-sats"> Sats</label>
+    <label><input type="checkbox" id="chk-fm"   checked> FM band</label>
+
+  
+  </div>
+  <canvas id="telemetryChart"></canvas>
+</div>
+
+
   <!-- Legend -->
   <div id="legend" class="legend" style="display:none;">
     <div class="legend-title">Altitude (m)</div>
@@ -119,6 +163,8 @@ Licensed under the MIT License. See LICENSE file in the project root.
   // see "replay.js".
 
   </script>
+
+  <script src="chart.umd.min.js"></script>
 
   <!-- Load replay JS separately -->
   <script src="replay.js"></script>
