@@ -35,3 +35,11 @@ Everything is bundled locally:
 
 ## License
 MIT
+
+## Third Party Code and Licenses
+
+This project includes source files from other projects
+licensed under the BSD 2-Clause License and the MIT License.
+
+These files are included unchanged.
+ 
