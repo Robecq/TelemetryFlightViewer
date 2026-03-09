@@ -61,7 +61,8 @@ function updateStatsPanel(html) {
   let marker = null, tailLine = null, hdgTick = null;
   let tailSeconds = 10;
   let telemetryChart = null;
-
+let chartTimes = [];     
+let chartCursorIndex = 0;  
   // ---- Helper functions ----------------------------------------------------
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
   const pad2  = (n) => String(Math.floor(n)).padStart(2, "0");
@@ -89,6 +90,20 @@ const MODE_COLORS = {
   'POS HOLD':  'rgba(63, 81, 181, 0.12)',
   'FAILSAFE':  'rgba(244, 67, 54, 0.22)'
 };
+
+let lastCursorIndex = -1;  // optional: skip redundant updates
+
+function updateChartCursorAt(timeSec) {
+  if (!telemetryChart || !chartTimes.length) return;
+
+  const idx = findIndexAtTime(chartTimes, timeSec);
+  if (idx === lastCursorIndex) return;   // perf guard
+  lastCursorIndex = idx;
+
+  // Show tooltip + vertical guideline at this index
+  telemetryChart.setActiveElements([{ datasetIndex: 0, index: idx }]); // any dataset is fine
+  telemetryChart.update('none');
+}
 
 function modeColor(mode) {
   return MODE_COLORS[mode] || 'rgba(0,0,0,0.08)';
@@ -135,6 +150,28 @@ function modeColor(mode) {
     return [φ2*180/Math.PI, ((λ2*180/Math.PI + 540)%360)-180];
   }
 
+  function findIndexAtTime(times, t) {
+  // Return the index of the closest sample at or before t (binary search)
+  let lo = 0, hi = times.length - 1;
+  if (t <= times[0]) return 0;
+  if (t >= times[hi]) return hi;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] === t) return mid;
+    if (times[mid] < t) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  // hi < lo; hi is the largest time < t
+  // choose nearest of hi and lo
+  if (lo >= times.length) return hi;
+  return (Math.abs(times[lo] - t) < Math.abs(times[hi] - t)) ? lo : hi;
+}
+
+function indexToTime(times, i) {
+  i = Math.max(0, Math.min(times.length - 1, i));
+  return times[i];
+}
+
   // Format seconds to mm:ss
 function fmtMMSS(sec) {
   if (!isFinite(sec) || sec < 0) return "00:00";
@@ -150,6 +187,8 @@ function buildTelemetryChart(out) {
 
   const t0 = out[0].timeSec;
   const labels = out.map(p => fmtMMSS(p.timeSec - t0));
+ 
+chartTimes = out.map(p => p.timeSec);  
 
   // Numeric series
   const altSeries   = out.map(p => Number.isFinite(p.alt)  ? p.alt  : null);
@@ -161,10 +200,12 @@ function buildTelemetryChart(out) {
   const thrSeries   = out.map(p => Number.isFinite(p.thr)  ? p.thr  : null);
   const satsSeries  = out.map(p => Number.isFinite(p.sats) ? p.sats : null);
 
-  // --- FM band: create a step-like “background area” that changes color per mode ---
-  // Strategy: produce a dataset with small values (e.g., 0..1) and fill to origin,
-  // but we’ll slice into contiguous mode segments and render each segment as a separate dataset
-  // so we can give each its own color.
+  
+
+
+
+
+ 
   function segmentModes(points) {
     const segments = [];
     if (!points.length) return segments;
@@ -291,6 +332,39 @@ function buildTelemetryChart(out) {
       }
     }
   });
+ 
+}
+function wireChartSeeking() {
+  const canvas = document.getElementById('telemetryChart');
+  if (!canvas || !telemetryChart) return;
+
+  const seekAtEvent = (evt) => {
+    // Translate pixel → nearest x index using chart scales
+    const chart = telemetryChart;
+    const xScale = chart.scales.x;
+    const rect = canvas.getBoundingClientRect();
+    const xPix = evt.clientX - rect.left;
+    // Convert pixel to chart label index
+    const xValue = xScale.getValueForPixel(xPix);  // value is label index for category scale
+    let idx = Math.round(xValue);
+    idx = Math.max(0, Math.min(chart.data.labels.length - 1, idx));
+
+    // Move replay to that time
+    const t = indexToTime(chartTimes, idx);
+    setTime(t, /* scrubbing = */ true);
+
+    // Update chart cursor immediately
+    updateChartCursorAt(t);
+  };
+
+  // Click seeks
+  canvas.addEventListener('click', seekAtEvent);
+
+  // Drag seeks (optional but nice)
+  let dragging = false;
+  canvas.addEventListener('pointerdown', (e) => { dragging = true; seekAtEvent(e); });
+  canvas.addEventListener('pointermove', (e) => { if (dragging) seekAtEvent(e); });
+  window.addEventListener('pointerup',   ()  => { dragging = false; });
 }
 
 // Hook up checkbox toggles
@@ -398,7 +472,7 @@ function wireSeriesToggles() {
     curTime = clamp(t, tStart, tEnd);
 
     const s = sampleAtTime(curTime);
-
+updateChartCursorAt(curTime);
     // marker
     if (!marker) {
       marker = L.circleMarker([s.lat, s.lon], {
@@ -428,6 +502,7 @@ function wireSeriesToggles() {
         opacity:0.9
       }).addTo(dynamicGroup);
     }
+
 
     const tailPts = [];
     const tailStart = curTime - tailSeconds;
@@ -464,6 +539,8 @@ function wireSeriesToggles() {
       map.panTo([s.lat, s.lon], {animate:false});
     }
 
+    ///
+    updateChartCursorAt(curTime);
     // UI
     const elapsed = curTime - tStart;
     statusEl.textContent =
@@ -812,7 +889,8 @@ out.push({
         // Build the chart from original points (real-time aligned)
 buildTelemetryChart(out);
 wireSeriesToggles(); // one-time wiring; harmless to call again
-        
+       wireChartSeeking(); 
+
 //--------------------------------------------------------------
 // Build timeSec from realDt
 //--------------------------------------------------------------
