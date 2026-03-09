@@ -1,6 +1,7 @@
 # TelemetryFlightViewer
 View CSV Telemetry Flight Data on LeafLet Maps
 
+<img width="2953" height="1744" alt="viewer" src="https://github.com/user-attachments/assets/92951f6a-61aa-492a-98f6-b0df52154c90" />
 
 A  offline HTML + JavaScript viewer for INAV / Betaflight / Ardupilot /EdgeTX GPS logs.
 Tested on csv created by lua telemetry from inav.
