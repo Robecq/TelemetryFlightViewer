@@ -1,4 +1,9 @@
-// replay.js — Real-Speed Smooth Animation Version with Gradient FIXED
+
+/*
+Copyright (c) 2026 Peter George
+Licensed under the MIT License. See LICENSE file in the project root.
+*/
+// replay.js — 
 
 (function () {
   "use strict";
@@ -531,20 +536,19 @@ function computeStats(srcPoints) {
           out[i].timeSec = smoothTime;
           smoothTime += realDt[i];
         }
-        // --------------------------- END PATCH -------------------------------
-
+    
         
 //--------------------------------------------------------------
-// Build timeSec from realDt (your existing real-time patch)
+// Build timeSec from realDt
 //--------------------------------------------------------------
 
 
         points = out;                 // original points with real timing
-points = smoothSpatial(points, 3);  // <-- this is the KEY FIX
+points = smoothSpatial(points, 3);  // spatial smoothing to reduce GPS noise (3-frame window)
 points = resampleTrack(points, 30);   // now smoothed to 30Hz
         altMin = altVals.length ? Math.min(...altVals) : 0;
         altMax = altVals.length ? Math.max(...altVals) : 0;
-        tStart = points[0].timeSec;
+        tStart = points[0].timeSec; 
         tEnd   = points[points.length-1].timeSec;
         duration = tEnd - tStart;
 
