@@ -60,10 +60,54 @@ function updateStatsPanel(html) {
   let running = false, rafId = null, lastTs = null, curTime = 0;
   let marker = null, tailLine = null, hdgTick = null;
   let tailSeconds = 10;
-
+  let telemetryChart = null;
+let chartTimes = [];     
+let chartCursorIndex = 0;  
   // ---- Helper functions ----------------------------------------------------
   const clamp = (x, a, b) => Math.min(b, Math.max(a, x));
   const pad2  = (n) => String(Math.floor(n)).padStart(2, "0");
+
+  const SERIES_COLORS = {
+  alt:  '#1f77b4',
+  spd:  '#d62728',
+  cur:  '#2ca02c',
+  rqly: '#9467bd',
+  capa: '#8c564b',
+  bat:  '#e377c2',
+  thr:  '#ff7f0e',
+  sats: '#17becf'
+};
+
+const MODE_COLORS = {
+  'MANUAL':    'rgba(66, 135, 245, 0.12)',
+  'ACRO':      'rgba(255, 165, 0, 0.12)',
+  'ANGLE':     'rgba(0, 200, 83, 0.12)',
+  'HORIZON':   'rgba(76, 175, 80, 0.12)',
+  'CRUISE':    'rgba(121, 85, 72, 0.12)',
+  'RTH':       'rgba(244, 67, 54, 0.16)',
+  'NAV WP':    'rgba(33, 150, 243, 0.12)',
+  'ALT HOLD':  'rgba(156, 39, 176, 0.12)',
+  'POS HOLD':  'rgba(63, 81, 181, 0.12)',
+  'FAILSAFE':  'rgba(244, 67, 54, 0.22)'
+};
+
+let lastCursorIndex = -1;  // optional: skip redundant updates
+
+function updateChartCursorAt(timeSec) {
+  if (!telemetryChart || !chartTimes.length) return;
+
+  const idx = findIndexAtTime(chartTimes, timeSec);
+  if (idx === lastCursorIndex) return;   // perf guard
+  lastCursorIndex = idx;
+
+  // Show tooltip + vertical guideline at this index
+  telemetryChart.setActiveElements([{ datasetIndex: 0, index: idx }]); // any dataset is fine
+  telemetryChart.update('none');
+}
+
+function modeColor(mode) {
+  return MODE_COLORS[mode] || 'rgba(0,0,0,0.08)';
+}
 
   function fmtClock(sec) {
     if (!isFinite(sec) || sec < 0) sec = 0;
@@ -105,6 +149,260 @@ function updateStatsPanel(html) {
 
     return [φ2*180/Math.PI, ((λ2*180/Math.PI + 540)%360)-180];
   }
+
+  function findIndexAtTime(times, t) {
+  // Return the index of the closest sample at or before t (binary search)
+  let lo = 0, hi = times.length - 1;
+  if (t <= times[0]) return 0;
+  if (t >= times[hi]) return hi;
+  while (lo <= hi) {
+    const mid = (lo + hi) >> 1;
+    if (times[mid] === t) return mid;
+    if (times[mid] < t) lo = mid + 1;
+    else hi = mid - 1;
+  }
+  // hi < lo; hi is the largest time < t
+  // choose nearest of hi and lo
+  if (lo >= times.length) return hi;
+  return (Math.abs(times[lo] - t) < Math.abs(times[hi] - t)) ? lo : hi;
+}
+
+function indexToTime(times, i) {
+  i = Math.max(0, Math.min(times.length - 1, i));
+  return times[i];
+}
+
+  // Format seconds to mm:ss
+function fmtMMSS(sec) {
+  if (!isFinite(sec) || sec < 0) return "00:00";
+  const m = Math.floor(sec / 60);
+  const s = Math.floor(sec % 60);
+  return `${String(m).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+}
+
+// Build chart from ORIGINAL parsed points (out) using real-time timeSec
+function buildTelemetryChart(out) {
+  if (telemetryChart) { telemetryChart.destroy(); telemetryChart = null; }
+  if (!out || out.length < 2) return;
+
+  const t0 = out[0].timeSec;
+  const labels = out.map(p => fmtMMSS(p.timeSec - t0));
+ 
+chartTimes = out.map(p => p.timeSec);  
+
+  // Numeric series
+  const altSeries   = out.map(p => Number.isFinite(p.alt)  ? p.alt  : null);
+  const spdSeries   = out.map(p => Number.isFinite(p.speed)? p.speed: null);
+  const curSeries   = out.map(p => Number.isFinite(p.curr) ? p.curr : null);
+  const rqlySeries  = out.map(p => Number.isFinite(p.rqly) ? p.rqly : null);
+  const capaSeries  = out.map(p => Number.isFinite(p.capa) ? p.capa : null);
+  const batSeries   = out.map(p => Number.isFinite(p.bat)  ? p.bat  : null);
+  const thrSeries   = out.map(p => Number.isFinite(p.thr)  ? p.thr  : null);
+  const satsSeries  = out.map(p => Number.isFinite(p.sats) ? p.sats : null);
+
+  
+
+
+
+
+ 
+  function segmentModes(points) {
+    const segments = [];
+    if (!points.length) return segments;
+    let start = 0, current = points[0].mode || 'UNKNOWN';
+    for (let i = 1; i < points.length; i++) {
+      const mode = points[i].mode || 'UNKNOWN';
+      if (mode !== current) {
+        segments.push({ idx0: start, idx1: i-1, mode: current });
+        start = i;
+        current = mode;
+      }
+    }
+    segments.push({ idx0: start, idx1: points.length-1, mode: current });
+    return segments;
+  }
+  const fmSegments = segmentModes(out);
+
+  // Base datasets (order matters to keep the band behind lines)
+  const datasets = [];
+
+  // FM band (only if checkbox is checked later; we’ll toggle .hidden accordingly)
+  fmSegments.forEach(seg => {
+    const data = new Array(out.length).fill(null);
+    for (let i = seg.idx0; i <= seg.idx1; i++) {
+      data[i] = 1; // flat band thickness
+    }
+    datasets.push({
+      label: `FM: ${seg.mode}`,
+      data,
+      stepped: true,
+      fill: true,
+      pointRadius: 0,
+      borderWidth: 0,
+      backgroundColor: modeColor(seg.mode),
+      yAxisID: 'yBand',
+      order: 0,          // draw behind
+      hidden: !document.getElementById('chk-fm').checked
+    });
+  });
+
+  // Line helpers
+  const mkLine = (label, data, color, yAxis, chkId) => ({
+    label,
+    data,
+    borderColor: color,
+    backgroundColor: color.replace(')', ',0.15)').replace('rgb', 'rgba'),
+    borderWidth: 2,
+    pointRadius: 0,
+    cubicInterpolationMode: 'monotone',
+    spanGaps: true,
+    yAxisID: yAxis,
+    order: 10,
+    hidden: document.getElementById(chkId) ? !document.getElementById(chkId).checked : false
+  });
+
+  // Add your numeric datasets
+  datasets.push(mkLine('Alt(m)',     altSeries,  SERIES_COLORS.alt,  'yAlt',  'chk-alt'));
+  datasets.push(mkLine('GSpd(kmh)',  spdSeries,  SERIES_COLORS.spd,  'ySpd',  'chk-spd'));
+  datasets.push(mkLine('Curr(A)',    curSeries,  SERIES_COLORS.cur,  'yCur',  'chk-cur'));
+  datasets.push(mkLine('RQly(%)',    rqlySeries, SERIES_COLORS.rqly, 'yRF',   'chk-rqly'));
+  datasets.push(mkLine('Capa(mAh)',  capaSeries, SERIES_COLORS.capa, 'yBat',  'chk-capa'));
+  datasets.push(mkLine('Bat(%)',     batSeries,  SERIES_COLORS.bat,  'yBat',  'chk-bat'));
+  datasets.push(mkLine('Thr(%)',     thrSeries,  SERIES_COLORS.thr,  'yCtl',  'chk-thr'));
+  datasets.push(mkLine('Sats',       satsSeries, SERIES_COLORS.sats, 'yRF',   'chk-sats'));
+
+  const ctx = document.getElementById('telemetryChart').getContext('2d');
+  telemetryChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels, datasets },
+    options: {
+      maintainAspectRatio: false,
+      interaction: { mode: 'index', intersect: false },
+      plugins: { legend: { display: true } },
+      scales: {
+        x: {
+          grid: { display: false },
+          ticks: { maxTicksLimit: 10 }
+        },
+        // FM band axis (hidden, just to carry the background fill)
+        yBand: {
+          type: 'linear',
+          display: false,
+          min: 0,
+          max: 1.2
+        },
+        // Altitude (left)
+        yAlt: {
+          type: 'linear',
+          position: 'left',
+          title: { display: true, text: 'Altitude (m)' },
+          grid: { color: 'rgba(0,0,0,0.05)' }
+        },
+        // Speed (right)
+        ySpd: {
+          type: 'linear',
+          position: 'right',
+          title: { display: true, text: 'Speed (km/h)' },
+          grid: { drawOnChartArea: false }
+        },
+        // Battery group (left, offset)
+        yBat: {
+          type: 'linear',
+          position: 'left',
+          offset: true,
+          title: { display: true, text: 'Battery (%, mAh)' },
+          grid: { drawOnChartArea: false }
+        },
+        // RF group (right, offset)
+        yRF: {
+          type: 'linear',
+          position: 'right',
+          offset: true,
+          title: { display: true, text: 'Link / Sats' },
+          grid: { drawOnChartArea: false }
+        },
+        // Control
+        yCtl: {
+          type: 'linear',
+          position: 'left',
+          offset: true,
+          title: { display: true, text: 'Controls (%)' },
+          grid: { drawOnChartArea: false }
+        }
+      }
+    }
+  });
+ 
+}
+function wireChartSeeking() {
+  const canvas = document.getElementById('telemetryChart');
+  if (!canvas || !telemetryChart) return;
+
+  const seekAtEvent = (evt) => {
+    // Translate pixel → nearest x index using chart scales
+    const chart = telemetryChart;
+    const xScale = chart.scales.x;
+    const rect = canvas.getBoundingClientRect();
+    const xPix = evt.clientX - rect.left;
+    // Convert pixel to chart label index
+    const xValue = xScale.getValueForPixel(xPix);  // value is label index for category scale
+    let idx = Math.round(xValue);
+    idx = Math.max(0, Math.min(chart.data.labels.length - 1, idx));
+
+    // Move replay to that time
+    const t = indexToTime(chartTimes, idx);
+    setTime(t, /* scrubbing = */ true);
+
+    // Update chart cursor immediately
+    updateChartCursorAt(t);
+  };
+
+  // Click seeks
+  canvas.addEventListener('click', seekAtEvent);
+
+  // Drag seeks (optional but nice)
+  let dragging = false;
+  canvas.addEventListener('pointerdown', (e) => { dragging = true; seekAtEvent(e); });
+  canvas.addEventListener('pointermove', (e) => { if (dragging) seekAtEvent(e); });
+  window.addEventListener('pointerup',   ()  => { dragging = false; });
+}
+
+// Hook up checkbox toggles
+function wireSeriesToggles() {
+  const ids = [
+    { chk: 'chk-alt',  dsLabel: 'Alt(m)'     },
+    { chk: 'chk-spd',  dsLabel: 'GSpd(kmh)'  },
+    { chk: 'chk-cur',  dsLabel: 'Curr(A)'    },
+    { chk: 'chk-rqly', dsLabel: 'RQly(%)'    },
+    { chk: 'chk-capa', dsLabel: 'Capa(mAh)'  },
+    { chk: 'chk-bat',  dsLabel: 'Bat(%)'     },
+    { chk: 'chk-thr',  dsLabel: 'Thr(%)'     },
+    { chk: 'chk-sats', dsLabel: 'Sats'       },
+    { chk: 'chk-fm',   dsLabelPrefix: 'FM:'  } // special: FM band segments have labels like "FM: MODE"
+  ];
+
+  const apply = () => {
+    if (!telemetryChart) return;
+    for (const m of ids) {
+      const chkEl = document.getElementById(m.chk);
+      if (!chkEl) continue;
+      telemetryChart.data.datasets.forEach(ds => {
+        if (m.dsLabel && ds.label === m.dsLabel) {
+          ds.hidden = !chkEl.checked;
+        }
+        if (m.dsLabelPrefix && ds.label.startsWith(m.dsLabelPrefix)) {
+          ds.hidden = !chkEl.checked; // all FM band segments together
+        }
+      });
+    }
+    telemetryChart.update('none');
+  };
+
+  ids.forEach(m => {
+    const el = document.getElementById(m.chk);
+    el && el.addEventListener('change', apply);
+  });
+}
 
   // ---- Gradient Track (FIXED, restored) ------------------------------------
   function buildGradientTrack(pts, aMin, aMax) {
@@ -174,7 +472,7 @@ function updateStatsPanel(html) {
     curTime = clamp(t, tStart, tEnd);
 
     const s = sampleAtTime(curTime);
-
+updateChartCursorAt(curTime);
     // marker
     if (!marker) {
       marker = L.circleMarker([s.lat, s.lon], {
@@ -204,6 +502,7 @@ function updateStatsPanel(html) {
         opacity:0.9
       }).addTo(dynamicGroup);
     }
+
 
     const tailPts = [];
     const tailStart = curTime - tailSeconds;
@@ -240,6 +539,8 @@ function updateStatsPanel(html) {
       map.panTo([s.lat, s.lon], {animate:false});
     }
 
+    ///
+    updateChartCursorAt(curTime);
     // UI
     const elapsed = curTime - tStart;
     statusEl.textContent =
@@ -472,18 +773,66 @@ function computeStats(srcPoints) {
           hdg = (hdg != null && String(hdg).trim() !== "")
             ? parseFloat(String(hdg).replace(",", "."))
             : null;
+            // RQly(%)
+let rqly = row["RQly(%)"];
+rqly = (rqly != null && String(rqly).trim() !== "")
+  ? parseFloat(String(rqly).replace(",", "."))
+  : null;
+
+// Capa(mAh)
+let capa = row["Capa(mAh)"];
+capa = (capa != null && String(capa).trim() !== "")
+  ? parseFloat(String(capa).replace(",", "."))
+  : null;
+
+// Bat(%)
+let batpct = row["Bat(%)"] ?? row["Bat%(%)"] ?? row["Bat%"]; // handle naming variants
+batpct = (batpct != null && String(batpct).trim() !== "")
+  ? parseFloat(String(batpct).replace(",", "."))
+  : null;
+
+// Thr(%)
+let thr = row["Thr(%)"] ?? row["Thr"] ?? row["Thr%"];
+thr = (thr != null && String(thr).trim() !== "")
+  ? parseFloat(String(thr).replace(",", "."))
+  : null;
+
+// Sats
+let sats = row["Sats"] ?? row["Sats(#)"];
+sats = (sats != null && String(sats).trim() !== "")
+  ? parseFloat(String(sats).replace(",", "."))
+  : null;
+
+// FM (mode) is categorical
+const fm = row["FM"] || null;
+
+
+
+// Current
+let curr = row["Curr(A)"];
+curr = (curr != null && String(curr).trim() !== "")
+  ? parseFloat(String(curr).replace(",", "."))
+  : null;
 
           // Mode
           const mode = row["FM"] || null;
 
-          out.push({
-            lat, lon,
-            alt: isFinite(alt)?alt:null,
-            speed: isFinite(gspd)?gspd:null,
-            hdg: isFinite(hdg)?hdg:null,
-            timeRaw: tSec,
-            mode
-          });
+
+out.push({
+  lat, lon,
+  alt:  isFinite(alt)  ? alt  : null,
+  speed:isFinite(gspd) ? gspd : null,
+  curr: isFinite(curr) ? curr : null,
+  rqly: isFinite(rqly) ? rqly : null,
+  capa: isFinite(capa) ? capa : null,
+  bat:  isFinite(batpct)? batpct: null,
+  thr:  isFinite(thr)  ? thr  : null,
+  sats: isFinite(sats) ? sats : null,
+  hdg:  isFinite(hdg)  ? hdg  : null,
+  timeRaw: tSec,
+  mode: fm
+});
+
         }
 
         if (!out.length) {
@@ -537,7 +886,11 @@ function computeStats(srcPoints) {
           smoothTime += realDt[i];
         }
     
-        
+        // Build the chart from original points (real-time aligned)
+buildTelemetryChart(out);
+wireSeriesToggles(); // one-time wiring; harmless to call again
+       wireChartSeeking(); 
+
 //--------------------------------------------------------------
 // Build timeSec from realDt
 //--------------------------------------------------------------
