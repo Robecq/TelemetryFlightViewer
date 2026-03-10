@@ -20,6 +20,10 @@ Features:
 2. Open `TelemetryFlightViewer.html` directly in your browser
 3. Click “Load CSV”
 4. Select your flight log ( CSV format) See examplelog.csv
+5. Explanation on how to set up and log telemetry data on your TX can be found here 
+   
+     https://oscarliang.com/log-telemetry/
+
 
 ## Supports
 
