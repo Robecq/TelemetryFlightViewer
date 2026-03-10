@@ -1,5 +1,6 @@
 # TelemetryFlightViewer
-View CSV Telemetry Flight Data on LeafLet Maps
+A local webapp for replaying csv flight logs with map visualization and telemetry graphs
+
 
 <img width="2953" height="1744" alt="viewer" src="https://github.com/user-attachments/assets/92951f6a-61aa-492a-98f6-b0df52154c90" />
 <img width="1801" height="1062" alt="Screenshot 2026-03-09 233652" src="https://github.com/user-attachments/assets/bb0a2d63-ea8c-48e9-8969-503cc53b7617" />
