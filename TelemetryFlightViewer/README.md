@@ -1,2 +1,2 @@
 # TelemetryFlightViewer
-View CSV Telemetry Flight Data on LeafLet Maps
+Copy all these files into its own directory on your computer and launch.
